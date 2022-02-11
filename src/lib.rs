@@ -1,4 +1,4 @@
-use std::fmt::Debug;
+use std::{fmt::Debug, marker::PhantomData};
 
 #[derive(Clone, Copy)]
 struct AllocId<const ID: usize>(usize);
@@ -14,28 +14,48 @@ impl<const ID: usize> From<usize> for AllocId<ID> {
     }
 }
 
-pub struct Ref<T, const ID: usize>(AllocId<ID>, &'static mut Heap<T, ID>)
+pub struct RefFmt<'h, 'r, T, const ID: usize>(&'r AllocId<ID>, &'h Heap<T, ID>)
 where
-    T: Mark<ID> + 'static;
+    T: Debug;
 
-impl<T, const ID: usize> std::fmt::Debug for Ref<T, ID>
+impl<'h, 'r, T, const ID: usize> Debug for RefFmt<'h, 'r, T, ID>
 where
     T: Debug + Mark<ID>,
 {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "&{}:{}: {:?}", ID, self.as_usize(), self.deref())
+        write!(f, "{:?}", self.1.get(self.0))
     }
 }
 
-impl<T: Mark<ID>, const ID: usize> Ref<T, ID> {
+pub struct Ref<'h, T, const ID: usize>(AllocId<ID>, PhantomData<&'h mut Heap<T, ID>>)
+where
+    T: Mark<ID> + 'static;
+
+impl<'h, T, const ID: usize> Ref<'h, T, ID>
+where
+    T: Mark<ID>,
+{
     fn as_usize(&self) -> usize {
         self.0 .0
     }
-    pub fn deref(&self) -> Option<&T> {
-        self.1.get(self.0)
+
+    fn new(alloc_id: AllocId<ID>) -> Self {
+        Self(alloc_id, Default::default())
     }
-    pub fn deref_mut(&mut self) -> Option<&mut T> {
-        self.1.get_mut(self.0)
+
+    pub fn deref(&self, heap: &'h Heap<T, ID>) -> Option<&'h T> {
+        heap.get(&self.0)
+    }
+    pub fn deref_mut(&mut self, heap: &'h mut Heap<T, ID>) -> Option<&'h mut T> {
+        heap.get_mut(&mut self.0)
+    }
+}
+impl<'h, T, const ID: usize> Ref<'h, T, ID>
+where
+    T: Mark<ID> + Debug,
+{
+    pub fn ref_fmt<'r>(&'r self, heap: &'h Heap<T, ID>) -> RefFmt<'h, 'r, T, ID> {
+        RefFmt(&self.0, heap)
     }
 }
 
@@ -123,11 +143,11 @@ impl<T: Mark<ID>, const ID: usize> Heap<T, ID> {
     pub fn alloc(&'static mut self, value: T) -> Ref<T, ID> {
         if let Some(slot) = self.free.pop() {
             self.values[slot] = Container::Value(value);
-            Ref(slot.into(), self)
+            Ref::new(slot.into())
         } else {
             self.values.push(Container::Value(value));
             self.marks.push(Marker::Unmark);
-            Ref((self.values.len() - 1).into(), self)
+            Ref::new((self.values.len() - 1).into())
         }
     }
 
@@ -135,11 +155,11 @@ impl<T: Mark<ID>, const ID: usize> Heap<T, ID> {
         if let Some(slot) = self.free.pop() {
             self.values[slot] = Container::Value(value);
             self.marks[slot] = Marker::Static;
-            Ref(slot.into(), self)
+            Ref::new(slot.into())
         } else {
             self.values.push(Container::Value(value));
             self.marks.push(Marker::Static);
-            Ref((self.values.len() - 1).into(), self)
+            Ref::new((self.values.len() - 1).into())
         }
     }
 
@@ -156,18 +176,20 @@ impl<T: Mark<ID>, const ID: usize> Heap<T, ID> {
 
     pub fn free(&mut self) {
         for (i, marker) in self.marks.iter_mut().enumerate() {
-            self.values[i].free();
-            marker.unmark();
-            self.free.push(i);
+            if let Marker::Mark = marker {
+                self.values[i].free();
+                marker.unmark();
+                self.free.push(i);
+            }
         }
     }
 
-    fn get(&self, rf: AllocId<ID>) -> Option<&T> {
+    fn get(&self, rf: &AllocId<ID>) -> Option<&T> {
         let cont = self.values.get(rf.as_usize())?;
         cont.as_value()
     }
 
-    fn get_mut(&mut self, vref: AllocId<ID>) -> Option<&mut T> {
+    fn get_mut(&mut self, vref: &mut AllocId<ID>) -> Option<&mut T> {
         let cont = self.values.get_mut(vref.as_usize())?;
         cont.as_value_mut()
     }
