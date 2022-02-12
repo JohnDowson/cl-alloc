@@ -1,6 +1,6 @@
 use std::{fmt::Debug, marker::PhantomData};
 
-#[derive(Clone, Copy)]
+#[derive(Clone, Copy, PartialEq)]
 struct AllocId<const ID: usize>(usize);
 impl<const ID: usize> AllocId<ID> {
     fn as_usize(&self) -> usize {
@@ -27,11 +27,12 @@ where
     }
 }
 
-pub struct Ref<'h, T, const ID: usize>(AllocId<ID>, PhantomData<&'h mut Heap<T, ID>>)
+#[derive(Clone, PartialEq)]
+pub struct Ref<T, const ID: usize>(AllocId<ID>, PhantomData<Heap<T, ID>>)
 where
     T: Mark<ID> + 'static;
 
-impl<'h, T, const ID: usize> Ref<'h, T, ID>
+impl<'h, T, const ID: usize> Ref<T, ID>
 where
     T: Mark<ID>,
 {
@@ -50,7 +51,7 @@ where
         heap.get_mut(&mut self.0)
     }
 }
-impl<'h, T, const ID: usize> Ref<'h, T, ID>
+impl<'h, T, const ID: usize> Ref<T, ID>
 where
     T: Mark<ID> + Debug,
 {
@@ -127,11 +128,11 @@ impl<T: Debug, const ID: usize> std::fmt::Debug for Heap<T, ID> {
     }
 }
 
-pub trait Mark<const ID: usize> {
-    fn mark(&self);
+pub trait Mark<const ID: usize>: Sized {
+    fn refs(&self) -> Vec<Ref<Self, ID>>;
 }
 
-impl<T: Mark<ID>, const ID: usize> Heap<T, ID> {
+impl<'h, T: Mark<ID>, const ID: usize> Heap<T, ID> {
     pub fn new() -> Self {
         Self {
             values: Default::default(),
@@ -170,8 +171,15 @@ impl<T: Mark<ID>, const ID: usize> Heap<T, ID> {
     }
 
     pub fn mark(&mut self, vref: &Ref<T, ID>) {
-        self.marks[vref.as_usize()].mark();
-        self.values[vref.as_usize()].as_value().map(T::mark);
+        if let marker @ Marker::Unmark = &mut self.marks[vref.as_usize()] {
+            marker.mark();
+            let vrefs = self.values[vref.as_usize()].as_value().map(T::refs);
+            if let Some(vrefs) = vrefs {
+                for vref in vrefs {
+                    self.mark(&vref)
+                }
+            }
+        };
     }
 
     pub fn free(&mut self) {
@@ -195,7 +203,7 @@ impl<T: Mark<ID>, const ID: usize> Heap<T, ID> {
     }
 }
 
-impl<T: Mark<ID>, const ID: usize> Default for Heap<T, ID> {
+impl<'h, T: Mark<ID>, const ID: usize> Default for Heap<T, ID> {
     fn default() -> Self {
         Self::new()
     }
