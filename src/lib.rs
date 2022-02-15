@@ -14,6 +14,7 @@ impl<const ID: usize> From<usize> for AllocId<ID> {
     }
 }
 
+#[derive(Clone, Copy)]
 pub struct RefFmt<'h, 'r, T, const ID: usize>(&'r AllocId<ID>, &'h Heap<T, ID>)
 where
     T: Debug;
@@ -27,7 +28,7 @@ where
     }
 }
 
-#[derive(Clone, PartialEq)]
+#[derive(Clone, Copy, PartialEq)]
 pub struct Ref<T, const ID: usize>(AllocId<ID>, PhantomData<Heap<T, ID>>)
 where
     T: Mark<ID> + 'static;
@@ -141,7 +142,7 @@ impl<'h, T: Mark<ID>, const ID: usize> Heap<T, ID> {
         }
     }
 
-    pub fn alloc(&'static mut self, value: T) -> Ref<T, ID> {
+    pub fn alloc(&mut self, value: T) -> Ref<T, ID> {
         if let Some(slot) = self.free.pop() {
             self.values[slot] = Container::Value(value);
             Ref::new(slot.into())
@@ -152,7 +153,7 @@ impl<'h, T: Mark<ID>, const ID: usize> Heap<T, ID> {
         }
     }
 
-    pub fn static_alloc(&'static mut self, value: T) -> Ref<T, ID> {
+    pub fn static_alloc(&mut self, value: T) -> Ref<T, ID> {
         if let Some(slot) = self.free.pop() {
             self.values[slot] = Container::Value(value);
             self.marks[slot] = Marker::Static;
