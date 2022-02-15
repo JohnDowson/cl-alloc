@@ -1,25 +1,25 @@
 use std::{fmt::Debug, marker::PhantomData};
 
 #[derive(Clone, Copy, PartialEq)]
-struct AllocId<const ID: usize>(usize);
-impl<const ID: usize> AllocId<ID> {
+struct AllocId<const ID: u32>(usize);
+impl<const ID: u32> AllocId<ID> {
     fn as_usize(&self) -> usize {
         self.0
     }
 }
 
-impl<const ID: usize> From<usize> for AllocId<ID> {
+impl<const ID: u32> From<usize> for AllocId<ID> {
     fn from(u: usize) -> Self {
         Self(u)
     }
 }
 
 #[derive(Clone, Copy)]
-pub struct RefFmt<'h, 'r, T, const ID: usize>(&'r AllocId<ID>, &'h Heap<T, ID>)
+pub struct RefFmt<'h, 'r, T, const ID: u32>(&'r AllocId<ID>, &'h Heap<T, ID>)
 where
     T: Debug;
 
-impl<'h, 'r, T, const ID: usize> Debug for RefFmt<'h, 'r, T, ID>
+impl<'h, 'r, T, const ID: u32> Debug for RefFmt<'h, 'r, T, ID>
 where
     T: Debug + Mark<ID>,
 {
@@ -29,11 +29,11 @@ where
 }
 
 #[derive(Clone, Copy, PartialEq)]
-pub struct Ref<T, const ID: usize>(AllocId<ID>, PhantomData<Heap<T, ID>>)
+pub struct Ref<T, const ID: u32>(AllocId<ID>, PhantomData<Heap<T, ID>>)
 where
     T: Mark<ID> + 'static;
 
-impl<'h, T, const ID: usize> Ref<T, ID>
+impl<'h, T, const ID: u32> Ref<T, ID>
 where
     T: Mark<ID>,
 {
@@ -52,7 +52,7 @@ where
         heap.get_mut(&mut self.0)
     }
 }
-impl<'h, T, const ID: usize> Ref<T, ID>
+impl<'h, T, const ID: u32> Ref<T, ID>
 where
     T: Mark<ID> + Debug,
 {
@@ -115,13 +115,13 @@ impl Marker {
     }
 }
 
-pub struct Heap<T, const ID: usize> {
+pub struct Heap<T, const ID: u32> {
     values: Vec<Container<T>>,
     marks: Vec<Marker>,
     free: Vec<usize>,
 }
 
-impl<T: Debug, const ID: usize> std::fmt::Debug for Heap<T, ID> {
+impl<T: Debug, const ID: u32> std::fmt::Debug for Heap<T, ID> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("Heap")
             .field("inner", &self.values.iter().enumerate().collect::<Vec<_>>())
@@ -129,11 +129,11 @@ impl<T: Debug, const ID: usize> std::fmt::Debug for Heap<T, ID> {
     }
 }
 
-pub trait Mark<const ID: usize>: Sized {
+pub trait Mark<const ID: u32>: Sized {
     fn refs(&self) -> Vec<Ref<Self, ID>>;
 }
 
-impl<'h, T: Mark<ID>, const ID: usize> Heap<T, ID> {
+impl<'h, T: Mark<ID>, const ID: u32> Heap<T, ID> {
     pub fn new() -> Self {
         Self {
             values: Default::default(),
@@ -204,7 +204,7 @@ impl<'h, T: Mark<ID>, const ID: usize> Heap<T, ID> {
     }
 }
 
-impl<'h, T: Mark<ID>, const ID: usize> Default for Heap<T, ID> {
+impl<'h, T: Mark<ID>, const ID: u32> Default for Heap<T, ID> {
     fn default() -> Self {
         Self::new()
     }
