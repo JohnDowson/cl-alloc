@@ -1,16 +1,16 @@
 use std::{fmt::Debug, marker::PhantomData};
 
 #[derive(Clone, Copy, PartialEq)]
-struct AllocId<const ID: u32>(usize);
+struct AllocId<const ID: u32>(u32);
 impl<const ID: u32> AllocId<ID> {
     fn as_usize(&self) -> usize {
-        self.0
+        self.0 as usize
     }
 }
 
 impl<const ID: u32> From<usize> for AllocId<ID> {
     fn from(u: usize) -> Self {
-        Self(u)
+        Self(u as u32)
     }
 }
 
@@ -37,12 +37,17 @@ impl<'h, T, const ID: u32> Ref<T, ID>
 where
     T: Mark<ID>,
 {
-    fn as_usize(&self) -> usize {
-        self.0 .0
+    pub fn as_usize(&self) -> usize {
+        self.0.as_usize()
     }
 
     fn new(alloc_id: AllocId<ID>) -> Self {
         Self(alloc_id, Default::default())
+    }
+
+    /// # Safety
+    pub unsafe fn from_bytes(bytes: usize) -> Self {
+        Self::new(AllocId::<ID>(bytes as u32))
     }
 
     pub fn deref(&self, heap: &'h Heap<T, ID>) -> Option<&'h T> {
