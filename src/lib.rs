@@ -1,11 +1,13 @@
 mod alloc;
 mod bitmap;
 mod mem;
+mod object;
 
 pub use alloc::CLAlloc;
+pub use object::ObjectHeader;
 
-const CELL_SIZE: usize = 16;
-const PAGE_SIZE: usize = 4096;
+pub const CELL_SIZE: usize = 16;
+pub const PAGE_SIZE: usize = 4096;
 
 pub fn round_up(n: usize, m: usize) -> usize {
     if m == 0 {
