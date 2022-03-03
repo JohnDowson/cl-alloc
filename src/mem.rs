@@ -41,7 +41,7 @@ impl Mem {
         unsafe { (self.start as *mut u8).add(self.size) }
     }
 
-    pub fn decommit(&self, page: *mut u8, size: usize) {
+    pub fn _decommit(&self, page: *mut u8, size: usize) {
         unsafe {
             libc::madvise(page as *mut _, size as _, libc::MADV_DONTNEED);
         }

@@ -31,12 +31,22 @@ impl CLAlloc {
         self.pages.retain(|p| !p.is_empty());
     }
 
+    fn _page(&self, index: usize) -> &Page {
+        &self.pages[index]
+    }
+
     pub fn alloc_page(&mut self) {
         self.pages.push(Page::new())
     }
 
     pub fn alloc(&mut self, size: usize) -> Option<NonNull<u8>> {
-        self.pages.iter_mut().find_map(|p| p.find_free_run(size))
+        let maybe = self.pages.iter_mut().find_map(|p| p.find_free_run(size));
+        if maybe.is_none() {
+            self.alloc_page();
+            self.pages.last_mut().unwrap().find_free_run(size)
+        } else {
+            maybe
+        }
     }
 }
 
@@ -191,17 +201,38 @@ impl Page {
 fn test() {
     let mut a = CLAlloc::new();
     a.alloc_page();
-    a.alloc(8);
-    a.alloc(4);
-    unsafe {
-        let ptr = a.pages[0].mem.start().add(32);
-        println! {"{:?}", a};
-        a.mark(ptr);
+    let ptr = a.alloc(8).unwrap().as_ptr();
+    let ptr2 = a.alloc(4).unwrap().as_ptr();
 
-        println! {"{:?}", a};
-        a.sweep();
-        println! {"{:?}", a};
-    }
+    assert_eq!(
+        (a._page(0).block.get(ptr), a._page(0).mark.get(ptr)),
+        (true, false),
+        "Assert pointer is white"
+    );
+    a.mark(ptr);
+    assert_eq!(
+        (a._page(0).block.get(ptr), a._page(0).mark.get(ptr)),
+        (true, true),
+        "Assert pointer is black"
+    );
+
+    a.sweep();
+    assert_eq!(
+        (a._page(0).block.get(ptr), a._page(0).mark.get(ptr)),
+        (true, false),
+        "Assert pointer is white"
+    );
+
+    assert_eq!(
+        (a._page(0).block.get(ptr2), a._page(0).mark.get(ptr2)),
+        (false, true),
+        "Assert pointer is free"
+    );
+
     a.alloc(2);
-    panic! {"{:?}", a};
+    assert_eq!(
+        (a._page(0).block.get(ptr2), a._page(0).mark.get(ptr2)),
+        (true, false),
+        "Assert pointer is white"
+    );
 }

@@ -22,6 +22,7 @@ impl std::fmt::Debug for GcBitmap {
 }
 
 impl GcBitmap {
+    /// Creates a new `GcBitmap` for a given `Mem`
     pub fn new(heap: &Mem) -> Self {
         let size = round_up(heap.size() / CELL_SIZE, 64) / 64;
         let start = unsafe {
@@ -38,7 +39,7 @@ impl GcBitmap {
     pub fn size(&self) -> usize {
         self.size
     }
-    pub fn index(&self, index: usize) -> Option<usize> {
+    pub fn _index(&self, index: usize) -> Option<usize> {
         if index < self.size {
             unsafe { self.start.add(index).read().some() }
         } else {
@@ -49,8 +50,12 @@ impl GcBitmap {
         self.start.add(index).read()
     }
 
+    /// Sets bit corresponding to given pointer. Panics if pointer does not belong in [heap_start..heap_end)
     pub fn set<const SET: bool>(&mut self, obj: *const u8) {
         let addr = obj as usize;
+        if !(addr >= self.heap_start && addr < self.heap_end) {
+            panic!("This pointer does not belong to this bitmap")
+        }
         let offset = addr - self.heap_start;
         let index = Self::offset_to_index(offset);
         let mask = Self::offset_to_mask(offset);
