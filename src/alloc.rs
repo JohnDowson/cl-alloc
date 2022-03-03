@@ -1,5 +1,7 @@
 use std::ptr::NonNull;
 
+use somok::Somok;
+
 use crate::{bitmap::GcBitmap, mem::Mem, CELL_SIZE, PAGE_SIZE};
 
 #[derive(Debug)]
@@ -101,6 +103,35 @@ impl Page {
     fn sweep(&mut self) {
         // block' = block & mark
         // mark' = block ^ mark
+        let mut last_header = None;
+        for index in (0..self.mem.size() / CELL_SIZE).step_by(CELL_SIZE) {
+            let ptr = unsafe { self.mem.start().add(index) };
+            let mark = self.mark.get(ptr);
+            let block = self.block.get(ptr);
+            match (block, mark) {
+                // extent
+                (false, false) => {
+                    if let Some(false) = last_header {
+                        self.mark.set::<true>(ptr);
+                    } else if last_header.is_none() {
+                        panic!("Encountered extent without a header")
+                    }
+                }
+                // free
+                (false, true) => (),
+                // white
+                (true, false) => {
+                    self.block.set::<false>(ptr);
+                    self.mark.set::<true>(ptr);
+                    last_header = false.some()
+                }
+                // black
+                (true, true) => {
+                    self.mark.set::<false>(ptr);
+                    last_header = true.some()
+                }
+            }
+        }
     }
 
     fn find_free_run(&mut self, size: usize) -> Option<NonNull<u8>> {
@@ -143,13 +174,13 @@ impl Page {
 
             self.block.set::<true>(ptr);
             self.mark.set::<false>(ptr);
-            for i in (16..size * 16).step_by(16) {
+            for i in (CELL_SIZE..size * CELL_SIZE).step_by(CELL_SIZE) {
                 unsafe {
                     self.block.set::<false>(ptr.add(i));
                     self.mark.set::<false>(ptr.add(i));
                 }
             }
-            self.mem.commit(ptr, size * 16);
+            self.mem.commit(ptr, size * CELL_SIZE);
 
             NonNull::new(ptr)
         }
@@ -161,10 +192,16 @@ fn test() {
     let mut a = CLAlloc::new();
     a.alloc_page();
     a.alloc(8);
-    a.alloc(2);
+    a.alloc(4);
     unsafe {
         let ptr = a.pages[0].mem.start().add(32);
-        dbg! { a.mark(ptr) };
+        println! {"{:?}", a};
+        a.mark(ptr);
+
+        println! {"{:?}", a};
+        a.sweep();
+        println! {"{:?}", a};
     }
+    a.alloc(2);
     panic! {"{:?}", a};
 }
