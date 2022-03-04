@@ -20,6 +20,9 @@ impl ObjectHeader {
     pub fn size(&self) -> usize {
         self.size as usize
     }
+    pub fn ty(&self) -> usize {
+        self.ty
+    }
     pub fn set_size(&mut self, size: u32) {
         assert!(size as usize <= self.max_size());
         self.size = size

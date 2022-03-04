@@ -49,8 +49,12 @@ impl Page {
         let is_header = self.block.get(ptr);
 
         if is_header {
-            self.mark.set::<true>(ptr);
-            true
+            if !self.mark.get(ptr) {
+                self.mark.set::<true>(ptr);
+                true
+            } else {
+                false
+            }
         } else {
             self.mark(unsafe { ptr.sub(CELL_SIZE) })
         }

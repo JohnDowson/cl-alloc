@@ -17,12 +17,13 @@ impl CLAlloc {
         }
     }
 
-    pub fn mark(&mut self, ptr: *const u8) {
+    pub fn mark(&mut self, ptr: *const u8) -> bool {
         for page in self.pages.iter_mut() {
             if page.mark(ptr) {
-                return;
+                return true;
             }
         }
+        false
     }
 
     pub fn sweep(&mut self) {
@@ -41,7 +42,10 @@ impl CLAlloc {
     }
 
     pub fn alloc(&mut self, size: usize) -> Option<NonNull<u8>> {
-        assert!(size <= PAGE_SIZE);
+        assert!(
+            size <= PAGE_SIZE,
+            "Can't allocate objects larger than PAGE_SIZE: {PAGE_SIZE}"
+        );
         let maybe = self.pages.iter_mut().find_map(|p| p.find_free_run(size));
         if maybe.is_none() {
             self.alloc_page();
